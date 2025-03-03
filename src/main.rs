@@ -113,10 +113,10 @@ fn main() {
             };
             
             let warning_emoji = if outdated { "💀🔥" } else { "✅" };
-            let bomb_emoji = if stars < 10 { "💣💣💣" } else if stars < 50 { "💣💣" } else { "💣" };
+            let bomb_emoji = if stars < 10 { "💣💣💣" } else if stars < 30 { "💣💣" } else { "💣" };
             
             if AI(stars, max_stars) {
-                println!("{} {} has {} stars {} | Last commit: {}", bomb_emoji, repo, stars, warning_emoji, last_commit);
+                println!("{}\t{} has {} stars {} | Last commit: {}", bomb_emoji, repo, stars, warning_emoji, last_commit);
             }
         }
     }
