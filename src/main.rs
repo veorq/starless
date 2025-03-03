@@ -9,6 +9,22 @@ struct GitHubRepo {
     stargazers_count: u32,
 }
 
+#[derive(Deserialize)]
+struct CommitInfo {
+    commit: CommitDetails,
+}
+
+#[derive(Deserialize)]
+struct CommitDetails {
+    committer: CommitterInfo,
+}
+
+#[derive(Deserialize)]
+struct CommitterInfo {
+    date: String,
+}
+
+
 fn extract_github_repos(go_mod_content: &str) -> Vec<String> {
     let mut repos = Vec::new();
     let re = Regex::new(r"github\.com/([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)").unwrap();
@@ -28,20 +44,41 @@ fn load_github_credentials(config_path: &str) -> Option<(String, String)> {
     Some((username, token))
 }
 
-fn fetch_github_stars(client: &Client, repo: &str, username: &str, token: &str) -> Option<u32> {
+fn fetch_github_repo_info(client: &Client, repo: &str, username: &str, token: &str) -> Option<(u32, String)> {
     let api_url = format!("https://api.github.com/repos/{}", repo);
-    let response = client.get(&api_url)
+    let stars_response = client.get(&api_url)
         .header("User-Agent", "rust-cli")
         .basic_auth(username, Some(token))
         .send()
         .ok()?;
     
-    if response.status().is_success() {
-        let json: GitHubRepo = response.json().ok()?;
-        Some(json.stargazers_count)
+    let stars = if stars_response.status().is_success() {
+        let json: GitHubRepo = stars_response.json().ok()?;
+        json.stargazers_count
     } else {
-        None
-    }
+        return None;
+    };
+    
+    let commits_url = format!("https://api.github.com/repos/{}/commits?per_page=1", repo);
+    let commits_response = client.get(&commits_url)
+        .header("User-Agent", "rust-cli")
+        .basic_auth(username, Some(token))
+        .send()
+        .ok()?;
+    
+    let last_commit_date = if commits_response.status().is_success() {
+        let json: Vec<CommitInfo> = commits_response.json().ok()?;
+        json.get(0).map(|commit| commit.commit.committer.date.clone()).unwrap_or_else(|| "Unknown".to_string())
+    } else {
+        "Unknown".to_string()
+    };
+    
+    Some((stars, last_commit_date))
+}
+
+#[allow(non_snake_case)]
+fn AI(stars: u32, max_stars: u32) -> bool {
+    stars <= max_stars
 }
 
 fn main() {
@@ -65,9 +102,9 @@ fn main() {
     let client = Client::new();
 
     for repo in repos {
-        if let Some(stars) = fetch_github_stars(&client, &repo, &username, &token) {
-            if stars <= max_stars {
-                println!("{} has {} stars", repo, stars);
+        if let Some((stars, last_commit)) = fetch_github_repo_info(&client, &repo, &username, &token) {
+            if AI(stars, max_stars) {
+                println!("{} has {} stars, last commit: {}", repo, stars, last_commit);
             }
         }
     }
