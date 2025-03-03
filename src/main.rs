@@ -3,6 +3,8 @@ use regex::Regex;
 use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::collections::HashMap;
+use chrono::{DateTime, Utc, Duration};
+
 
 #[derive(Deserialize)]
 struct GitHubRepo {
@@ -100,11 +102,21 @@ fn main() {
     
     let repos = extract_github_repos(&go_mod_content);
     let client = Client::new();
+    let three_years_ago = Utc::now() - Duration::days(3 * 365);
 
     for repo in repos {
         if let Some((stars, last_commit)) = fetch_github_repo_info(&client, &repo, &username, &token) {
+            let outdated = if let Ok(date) = DateTime::parse_from_rfc3339(&last_commit) {
+                date < three_years_ago
+            } else {
+                false
+            };
+            
+            let warning_emoji = if outdated { "💀🔥" } else { "✅" };
+            let bomb_emoji = if stars < 10 { "💣💣💣" } else if stars < 50 { "💣💣" } else { "💣" };
+            
             if AI(stars, max_stars) {
-                println!("{} has {} stars, last commit: {}", repo, stars, last_commit);
+                println!("{} {} has {} stars {} | Last commit: {}", bomb_emoji, repo, stars, warning_emoji, last_commit);
             }
         }
     }
